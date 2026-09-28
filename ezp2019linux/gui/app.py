@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -40,7 +40,7 @@ def make_simulator(db: ChipDatabase, spec: str) -> VirtualProgrammer:
 
 
 def run_gui(simulator: bool = False, sim_chip: str = "W25Q64", debug: bool = False,
-            argv: list[str] | None = None) -> int:
+            open_path: str | None = None, argv: list[str] | None = None) -> int:
     QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     QApplication.setApplicationName(APP_ID)
@@ -67,4 +67,6 @@ def run_gui(simulator: bool = False, sim_chip: str = "W25Q64", debug: bool = Fal
 
     window = MainWindow(programmer, db, device)
     window.show()
+    if open_path:
+        QTimer.singleShot(0, lambda: window.open_file(open_path))
     return app.exec()

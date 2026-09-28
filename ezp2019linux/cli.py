@@ -297,7 +297,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.set_defaults(func=func)
         return p
 
-    sub.add_parser("gui", help="open the graphical interface (default)")
+    p = sub.add_parser("gui", help="open the graphical interface (default)")
+    p.add_argument("file", nargs="?", help="image file to open in the buffer")
     p = sub.add_parser("list", help="list connected programmers")
     p.set_defaults(func=cmd_list)
     p = sub.add_parser("info", help="show programmer details")
@@ -326,17 +327,33 @@ def build_parser() -> argparse.ArgumentParser:
     op("blank", "check that the chip is erased", cmd_blank)
     p = sub.add_parser("install-udev", help="install the udev rule for non-root access")
     p.set_defaults(func=cmd_install_udev)
+    ap.command_names = set(sub.choices)
     return ap
+
+
+def _split_open_path(argv: list[str], commands: set[str]) -> tuple[list[str], str | None]:
+    """Support ``ezp2019linux FILE`` (used by the desktop launcher)."""
+    for i, arg in enumerate(argv):
+        if arg.startswith("-") or (i > 0 and argv[i - 1] == "--sim-chip"):
+            continue
+        if arg in commands or not os.path.isfile(arg):
+            return argv, None
+        return argv[:i] + argv[i + 1:], arg
+    return argv, None
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    argv, open_path = _split_open_path(argv, ap.command_names)
     args = ap.parse_args(argv)
     if os.environ.get("EZP2019LINUX_SIMULATOR"):
         args.simulator = True
     if args.command in (None, "gui"):
         from .gui.app import run_gui
-        return run_gui(simulator=args.simulator, sim_chip=args.sim_chip, debug=args.debug)
+        open_path = getattr(args, "file", None) or open_path
+        return run_gui(simulator=args.simulator, sim_chip=args.sim_chip, debug=args.debug,
+                       open_path=open_path)
     for attr, default in (("clock", P.DEFAULT_CLOCK), ("no_check", False)):
         if not hasattr(args, attr):
             setattr(args, attr, default)

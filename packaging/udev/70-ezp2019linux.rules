@@ -1,0 +1,4 @@
+# EZP2019 / EZP2019+ USB programmer (installed by ezp2019linux).
+# "uaccess" gives the user logged in at the local seat access to the device.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1fc8", ATTRS{idProduct}=="310b", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1fc8", ATTRS{idProduct}=="310c", MODE="0660", TAG+="uaccess"

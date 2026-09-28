@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=EZP2019+ Programmer
+GenericName=EEPROM and Flash Programmer
+Comment=Read, write, erase and verify SPI flash and EEPROM chips with the EZP2019+
+Exec=ezp2019linux %f
+Icon=ezp2019linux
+Terminal=false
+Categories=Development;Electronics;
+Keywords=eeprom;flash;bios;spi;i2c;microwire;programmer;ezp2019;
+StartupNotify=true
+StartupWMClass=ezp2019linux
