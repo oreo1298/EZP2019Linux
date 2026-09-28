@@ -379,7 +379,11 @@ class Programmer:
                 time.sleep(0.05)
             with self.session(clock) as s:
                 result = s.detect(chip)
-            if db is not None and result.kind == P.DETECT_SPI_FLASH:
+            if db is None:
+                if result.present:
+                    break
+                continue
+            if result.kind == P.DETECT_SPI_FLASH:
                 result.matches = db.by_jedec_id(result.jedec_id)
             if result.present and (result.kind != P.DETECT_SPI_FLASH or result.matches):
                 break

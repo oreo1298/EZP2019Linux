@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, QSize, QStringListModel, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QCompleter, QFileDialog,
-                               QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel,
+                               QFormLayout, QFrame, QHBoxLayout, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSplitter,
                                QToolBar, QToolButton, QVBoxLayout, QWidget)
@@ -24,7 +24,7 @@ from ..core.errors import (BackendError, NoChipError, NotConnectedError, Operati
 from ..core.programmer import (DetectResult, Programmer, VerifyResult, round_up,
                                used_length, verify_length, write_length)
 from ..core.simulator import VirtualProgrammer
-from ..core.system import install_udev_rule
+from ..core.system import install_udev_rule, udev_rule_installed
 from ..core.transport import DeviceInfo
 from . import icons
 from .dialogs import (AboutDialog, ChipEditorDialog, ChipPickerDialog, FillDialog,
@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
         self.device: DeviceInfo | None = None
         self.device_error: str | None = None
         self._device_key = object()
+        self._describe_attempts = 0
         self._log_entries: list[tuple[str, str, str]] = []
         self._stage = ""
         self._stage_t0 = 0.0
@@ -801,8 +802,19 @@ class MainWindow(QMainWindow):
     def _describe_device(self) -> None:
         try:
             info = self.prog.describe()
-        except PermissionDeniedError as exc:
+        except (PermissionDeniedError, NotConnectedError) as exc:
+            # Right after plug-in udev may not have applied the access rule yet, and the
+            # device can still be settling: look again on the next polls before reporting.
+            if self._describe_attempts < 2:
+                self._describe_attempts += 1
+                self._device_key = object()
+                return
+            self._describe_attempts = 0
             self.device = None
+            if isinstance(exc, NotConnectedError):
+                self.device_error = None
+                self._refresh_device_view()
+                return
             self.device_error = "permission"
             self.log(str(exc), "error")
         except ProgrammerError as exc:
@@ -810,6 +822,7 @@ class MainWindow(QMainWindow):
             self.device_error = "busy"
             self.log(f"Found a programmer but could not open it: {exc}", "error")
         else:
+            self._describe_attempts = 0
             self.device = info
             self.device_error = None
             self.log(f"Programmer connected — {info.model}, firmware {info.firmware}, "
@@ -846,8 +859,12 @@ class MainWindow(QMainWindow):
                 self.dev_grid.set(k, "—")
             if self.device_error == "permission":
                 color, state = pal.warning, "No permission to open the device"
-                self.dev_banner.setText("The programmer is plugged in but your user cannot "
-                                        "access it. Install the udev rule to fix this.")
+                if udev_rule_installed():
+                    self.dev_banner.setText("The udev rule is installed but not active yet. "
+                                            "Unplug the programmer and plug it back in.")
+                else:
+                    self.dev_banner.setText("The programmer is plugged in but your user cannot "
+                                            "access it. Install the udev rule to fix this.")
                 self.dev_banner.show()
                 pill = "Permission needed"
             elif self.device_error == "backend":

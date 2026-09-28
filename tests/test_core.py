@@ -3,9 +3,7 @@ import random
 import pytest
 
 from ezp2019linux.core import protocol as P
-from ezp2019linux.core.chipdb import (CLASS_24_EEPROM, CLASS_25_EEPROM, CLASS_93_EEPROM,
-                                      CLASS_SPI_FLASH, Chip, ChipDatabase, build_dat,
-                                      parse_dat)
+from ezp2019linux.core.chipdb import CLASS_SPI_FLASH, ChipDatabase, build_dat, parse_dat
 from ezp2019linux.core.errors import NoChipError, OperationCancelled
 from ezp2019linux.core.programmer import (Programmer, used_length, verify_length,
                                           write_length)
@@ -253,3 +251,14 @@ def test_pad_payload_uses_buffer_for_chunk_tail(db):
     buf = bytes(range(256))
     assert pad_payload(c, buf, 20) == buf[:64]
     assert pad_payload(c, buf[:20], 20) == buf[:20] + b"\xFF" * 44
+
+
+def test_presence_check_uses_one_session(db):
+    c = chip(db, "W25Q16")
+    dev, prog = make(c)
+    prog.blank_check(c)
+    assert dev.sessions == 2            # presence check + the operation itself
+    dev.insert(chip(db, "MICROCHIP:24C02"))
+    dev.sessions = 0
+    prog.detect(db=db)
+    assert dev.sessions == 1

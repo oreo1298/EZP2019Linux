@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
+from PySide6.QtCore import QByteArray, QRectF, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
@@ -49,9 +49,6 @@ _PATHS: dict[str, str] = {
     "close": '<path d="M6 6l12 12M18 6 6 18"/>',
 }
 
-_DOT = '<circle cx="12" cy="12" r="{r}" fill="{color}" stroke="none"/>'
-
-
 def svg(name: str, color: str, stroke: float = 1.9) -> str:
     body = _PATHS[name]
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
@@ -80,13 +77,6 @@ def icon(name: str, color: str, disabled_color: str | None = None, size: int = 2
     return ic
 
 
-@lru_cache(maxsize=64)
-def dot(color: str, size: int = 12) -> QPixmap:
-    text = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
-            + _DOT.format(r=8, color=color) + '</svg>')
-    return _render(text, size)
-
-
 def pixmap(name: str, color: str, size: int = 20) -> QPixmap:
     return _render(svg(name, color), size)
 
@@ -98,7 +88,3 @@ def write_svg_file(directory: Path, name: str, color: str, stroke: float = 2.4) 
     if not path.exists():
         path.write_text(svg(name, color, stroke), encoding="utf-8")
     return path
-
-
-def icon_size(px: int) -> QSize:
-    return QSize(px, px)

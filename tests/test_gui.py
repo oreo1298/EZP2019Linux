@@ -230,3 +230,23 @@ def test_close_while_busy_is_quick(setup):
     win.close()
     assert time.monotonic() - t0 < 5
     assert not win.runner._thread or not win.runner._thread.isRunning()
+
+
+def test_permission_race_retries(setup, monkeypatch):
+    from ezp2019linux.core.errors import PermissionDeniedError
+    win, device, chip = setup
+    real = win.prog.describe
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise PermissionDeniedError()
+        return real()
+
+    monkeypatch.setattr(win.prog, "describe", flaky)
+    win.device = None
+    win.rescan_device()
+    assert win.device is None and win.device_error is None      # not reported yet
+    win._poll_device()
+    assert win.device is not None and win.device_error is None

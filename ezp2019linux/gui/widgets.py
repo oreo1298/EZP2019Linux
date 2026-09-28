@@ -13,11 +13,6 @@ from . import icons
 from .theme import theme
 
 
-def set_role(widget: QWidget, name: str) -> QWidget:
-    widget.setObjectName(name)
-    return widget
-
-
 def form_row(form: QFormLayout, text: str, field: QWidget, muted: bool = True) -> QLabel:
     """Add a form row whose label is vertically centred on the field."""
     label = QLabel(text)

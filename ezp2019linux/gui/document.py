@@ -108,11 +108,6 @@ class BufferDocument(QObject):
         self.mismatches = set(offsets)
         self.contentChanged.emit(0, -1)
 
-    def clear_marks(self) -> None:
-        self._marks = []
-        self.mismatches = set()
-        self.contentChanged.emit(0, -1)
-
     def mark_saved(self, path: str) -> None:
         self.path = path
         self.dirty = False
