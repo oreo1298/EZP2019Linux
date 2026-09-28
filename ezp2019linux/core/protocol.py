@@ -80,9 +80,11 @@ def variant_for(product: str | None, in_endpoints: set[int] | None = None) -> Va
     """
     by_name = None
     if product is not None:
-        if product == VARIANT_A.name:
+        # The vendor tool compares C strings, so trailing NULs/blanks do not matter.
+        name = product.replace("\x00", " ").strip()
+        if name == VARIANT_A.name:
             by_name = VARIANT_A
-        elif product == VARIANT_B.name:
+        elif name == VARIANT_B.name:
             by_name = VARIANT_B
     if in_endpoints:
         if by_name is not None and by_name.ep_in in in_endpoints:

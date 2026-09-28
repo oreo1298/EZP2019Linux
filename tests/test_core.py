@@ -88,6 +88,8 @@ def test_variant_selection():
     assert P.variant_for("WinUSBComm", {0x82}) is P.VARIANT_B
     assert P.variant_for(None, {0x82}) is P.VARIANT_B
     assert P.variant_for("WinUSBComm Device", {0x82}) is P.VARIANT_B
+    assert P.variant_for("WinUSBComm\x00", {0x82, 0x85}) is P.VARIANT_B
+    assert P.variant_for("WinUSBComm Device ", None) is P.VARIANT_A
 
 
 # -- operations against the simulator ------------------------------------------

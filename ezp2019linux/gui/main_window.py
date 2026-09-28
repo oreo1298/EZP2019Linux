@@ -494,7 +494,7 @@ class MainWindow(QMainWindow):
         return lbl
 
     def _build_buffer_card(self) -> Card:
-        card = Card("Buffer", "chip")
+        card = Card("Buffer", "binary")
         self.buffer_icon_card = card
         self.buffer_title = QLabel()
         self.buffer_title.setObjectName("Muted")
