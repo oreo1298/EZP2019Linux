@@ -56,10 +56,13 @@ Improvements over the Windows version:
 
 ## Install on Arch Linux
 
+Run these as your normal user (not root); `makepkg` asks for your password
+when it installs the package:
+
 ```sh
 sudo pacman -S --needed base-devel git
 git clone https://github.com/oreo1298/EZP2019Linux.git
-cd EZP2019Linux/packaging/arch
+cd EZP2019Linux
 makepkg -si
 ```
 
@@ -68,8 +71,19 @@ entry and a udev rule that gives your user access to the programmer. If the
 programmer was plugged in during installation, unplug it and plug it back in
 once.
 
-Dependencies (pulled in automatically): `python`, `pyside6`, `python-pyusb`
-and `libusb`. On Wayland, install `qt6-wayland` for native Wayland windows.
+Dependencies (pulled in automatically): `python`, `pyside6`, `qt6-svg`,
+`qt6-wayland`, `python-pyusb` and `libusb`.
+
+To update later, pull the new code and build again from the same folder:
+
+```sh
+cd EZP2019Linux
+git pull
+makepkg -si
+```
+
+If `makepkg` says `PKGBUILD does not exist`, you are not inside the
+`EZP2019Linux` folder.
 
 ### Other distributions, or without a package
 

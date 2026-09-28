@@ -10,3 +10,7 @@ venv/
 packaging/arch/*.pkg.tar.*
 packaging/arch/src/
 packaging/arch/pkg/
+# makepkg output when building from the repository root
+/src/
+/pkg/
+/*.pkg.tar*

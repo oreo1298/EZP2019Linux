@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -270,7 +271,8 @@ class ThemeManager(QObject):
         super().__init__()
         self.mode = "system"
         self.palette: Palette = DARK
-        self._asset_dir = Path(tempfile.gettempdir()) / "ezp2019linux-theme"
+        cache = os.environ.get("XDG_CACHE_HOME") or os.path.join(Path.home(), ".cache")
+        self._asset_dir = Path(cache) / "ezp2019linux" / "theme"
 
     def resolve(self, mode: str) -> Palette:
         if mode == "system":
@@ -306,13 +308,26 @@ class ThemeManager(QObject):
             qp.setColor(QPalette.Disabled, r, QColor(p.text_faint))
         app.setPalette(qp)
 
-        assets = self._asset_dir / p.name
         values = {k: v for k, v in p.__dict__.items() if isinstance(v, str)}
-        values["chevron"] = icons.write_svg_file(assets, "chevron_down", p.text_muted).as_posix()
-        values["chevron_faint"] = icons.write_svg_file(assets, "chevron_down", p.text_faint).as_posix()
-        values["check"] = icons.write_svg_file(assets, "check", p.accent_text, 3.0).as_posix()
+        values.update(self._style_assets(p))
         app.setStyleSheet(_QSS.substitute(values))
         self.changed.emit(p)
+
+    def _style_assets(self, p: Palette) -> dict[str, str]:
+        """Icon files referenced by the style sheet (per-user cache, temp dir fallback)."""
+        def write(directory: Path) -> dict[str, str]:
+            return {
+                "chevron": icons.write_svg_file(directory, "chevron_down", p.text_muted),
+                "chevron_faint": icons.write_svg_file(directory, "chevron_down", p.text_faint),
+                "check": icons.write_svg_file(directory, "check", p.accent_text, 3.0),
+            }
+
+        try:
+            paths = write(self._asset_dir / p.name)
+        except OSError:
+            self._asset_dir = Path(tempfile.mkdtemp(prefix="ezp2019linux-theme-"))
+            paths = write(self._asset_dir / p.name)
+        return {k: v.as_posix() for k, v in paths.items()}
 
     def icon(self, name: str, color_token: str = "text"):
         p = self.palette

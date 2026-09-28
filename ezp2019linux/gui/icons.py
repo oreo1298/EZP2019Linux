@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -86,5 +87,7 @@ def write_svg_file(directory: Path, name: str, color: str, stroke: float = 2.4) 
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}-{color.lstrip('#')}.svg"
     if not path.exists():
-        path.write_text(svg(name, color, stroke), encoding="utf-8")
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(svg(name, color, stroke), encoding="utf-8")
+        os.replace(tmp, path)
     return path
