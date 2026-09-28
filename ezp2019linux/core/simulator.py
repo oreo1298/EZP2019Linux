@@ -82,10 +82,7 @@ class VirtualProgrammer:
                 data = bytearray(contents[:chip.size])
                 data += b"\xFF" * (chip.size - len(data))
             elif pattern == "random":
-                rnd = random.Random(chip.size)
-                data = bytearray(rnd.getrandbits(8) for _ in range(min(chip.size, 1 << 16)))
-                data *= max(1, chip.size // max(1, len(data)))
-                data = data[:chip.size]
+                data = bytearray(random.Random(chip.size).randbytes(chip.size))
             else:
                 data = bytearray(b"\xFF" * chip.size)
             self.memory = data
@@ -267,10 +264,11 @@ class VirtualProgrammer:
             start = self._address(self.stream_addr)
             end = min(start + len(data), len(self.memory))
             chunk = data[:end - start]
-            if self.config and self.config.chip_class == CLASS_SPI_FLASH:
-                mem = self.memory
-                for i, b in enumerate(chunk):   # NOR flash: programming only clears bits
-                    mem[start + i] &= b
+            if self.config and self.config.chip_class == CLASS_SPI_FLASH and chunk:
+                # NOR flash: programming can only clear bits.
+                merged = (int.from_bytes(self.memory[start:end], "little")
+                          & int.from_bytes(chunk, "little"))
+                self.memory[start:end] = merged.to_bytes(len(chunk), "little")
             else:
                 self.memory[start:end] = chunk
             self.stream_addr += len(data)
