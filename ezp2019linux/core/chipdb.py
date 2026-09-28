@@ -121,6 +121,16 @@ class Chip:
         return f"#{self.voltage}"
 
     @property
+    def is_1v8(self) -> bool:
+        """1.8 V parts; the programmer reaches them through its 1.8 V adapter."""
+        return self.voltage == 1 or "1.8V" in self.name.upper().replace(" ", "")
+
+    @property
+    def supply_label(self) -> str:
+        """Operating voltage for display (1.8 V parts are marked as such)."""
+        return "1.8 V" if self.is_1v8 else self.voltage_label
+
+    @property
     def algorithm_label(self) -> str:
         labels = ALGORITHM_LABELS.get(self.chip_class, {})
         return labels.get(self.algorithm, f"0x{self.algorithm:02X}")
