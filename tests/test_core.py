@@ -243,3 +243,11 @@ def test_trace(db):
     prog = Programmer(SimConnector(dev), trace=lines.append)
     prog.detect()
     assert any(line.startswith("CMD") for line in lines)
+
+
+def test_pad_payload_uses_buffer_for_chunk_tail(db):
+    from ezp2019linux.core.programmer import pad_payload
+    c = chip(db, "MICROCHIP:24C02")        # 16-byte pages, 64-byte transfer chunks
+    buf = bytes(range(256))
+    assert pad_payload(c, buf, 20) == buf[:64]
+    assert pad_payload(c, buf[:20], 20) == buf[:20] + b"\xFF" * 44

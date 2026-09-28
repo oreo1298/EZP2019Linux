@@ -315,10 +315,16 @@ def _request_size(chip: Chip, preferred: int) -> int:
 
 
 def pad_payload(chip: Chip, data: bytes | bytearray | memoryview, length: int) -> bytes:
-    """``length`` bytes of data, padded with 0xFF to whole transfer chunks."""
+    """The bytes to stream for a write of ``length`` bytes.
+
+    The device is always sent whole transfer chunks.  Like the vendor tool the
+    chunk tail comes from the caller's buffer when it has the bytes (so small
+    EEPROM pages next to the data are rewritten with their buffer contents);
+    only bytes beyond the end of ``data`` are padded with 0xFF.
+    """
     length = min(length, chip.size)
     total = min(round_up(length, P.transfer_chunk(chip)), chip.size)
-    body = bytes(memoryview(data)[:min(length, len(data))])
+    body = bytes(memoryview(data)[:min(total, len(data))])
     return body + b"\xFF" * (total - len(body))
 
 

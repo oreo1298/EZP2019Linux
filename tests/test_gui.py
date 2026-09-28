@@ -219,3 +219,14 @@ def test_disconnect_reported(setup):
     device.connected = True
     win._poll_device()
     assert win.device is not None
+
+
+def test_close_while_busy_is_quick(setup):
+    win, device, chip = setup
+    device.timing = Timing(read_bytes_per_s=100_000)
+    win.read_chip()
+    pump(0.2)
+    t0 = time.monotonic()
+    win.close()
+    assert time.monotonic() - t0 < 5
+    assert not win.runner._thread or not win.runner._thread.isRunning()

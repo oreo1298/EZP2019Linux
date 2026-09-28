@@ -44,6 +44,8 @@ class _Operation(QObject):
             self.succeeded.emit(result)
         finally:
             self.done.emit()
+            # Leave the thread's event loop now so waiting on it never blocks.
+            QThread.currentThread().quit()
 
 
 class OperationRunner(QObject):

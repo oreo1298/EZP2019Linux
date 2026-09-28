@@ -19,13 +19,10 @@ from .. import APP_NAME, __version__
 from ..core import fileio
 from ..core import protocol as P
 from ..core.chipdb import TYPE_LABELS, Chip, ChipDatabase, format_size
-
-TYPE_SHORT = {"SPI_FLASH": "Flash", "24_EEPROM": "24xx", "93_EEPROM": "93xx",
-              "25_EEPROM": "25xx"}
 from ..core.errors import (BackendError, NoChipError, NotConnectedError, OperationCancelled,
                            PermissionDeniedError, ProgrammerError)
-from ..core.programmer import (DetectResult, Programmer, VerifyResult, used_length,
-                               verify_length, write_length)
+from ..core.programmer import (DetectResult, Programmer, VerifyResult, round_up,
+                               used_length, verify_length, write_length)
 from ..core.simulator import VirtualProgrammer
 from ..core.system import install_udev_rule
 from ..core.transport import DeviceInfo
@@ -40,6 +37,8 @@ from .widgets import (Card, KeyValueGrid, SegmentedControl, StatTile, StatusDot,
 from .worker import OperationRunner
 
 MAX_LOG_ENTRIES = 3000
+TYPE_SHORT = {"SPI_FLASH": "Flash", "24_EEPROM": "24xx", "93_EEPROM": "93xx",
+              "25_EEPROM": "25xx"}
 
 
 def human_bytes(n: int) -> str:
@@ -74,7 +73,6 @@ class MainWindow(QMainWindow):
         self._log_entries: list[tuple[str, str, str]] = []
         self._stage = ""
         self._stage_t0 = 0.0
-        self._last_find: bytes | None = None
         self._icon_actions: list[tuple[QAction, str, str]] = []
         self._chip_names: dict[str, Chip] = {}
 
@@ -176,7 +174,7 @@ class MainWindow(QMainWindow):
                             "Add your own chips, import or export .Dat databases")
         self.act_about = a("About", "info", self.show_about, None)
         self.act_install_udev = a("Install USB permissions (udev rule)…", "shield",
-                                  self.install_udev, None,
+                                  lambda: self.install_udev(), None,
                                   "Allow your user to access the programmer without root")
         self.act_refresh = a("Rescan for programmer", "refresh", self.rescan_device, None)
         self.act_trace = a("Log USB traffic", None, None, None,
@@ -378,7 +376,7 @@ class MainWindow(QMainWindow):
         card.add(self.dev_banner)
         self.fix_perm_btn = QPushButton("Fix USB permissions…")
         self.fix_perm_btn.setProperty("variant", "primary")
-        self.fix_perm_btn.clicked.connect(self.install_udev)
+        self.fix_perm_btn.clicked.connect(lambda: self.install_udev())
         self.fix_perm_btn.hide()
         card.add(self.fix_perm_btn)
 
@@ -719,6 +717,10 @@ class MainWindow(QMainWindow):
     def _apply_chip(self, chip: Chip) -> None:
         changed = self.chip is None or chip.key != self.chip.key
         self.chip = chip
+        if changed and self.doc.source != "file":
+            # A dump of another chip only makes sense up to this chip's size; files keep
+            # their full length so an oversized image is still noticed before writing.
+            self.doc.data_length = min(self.doc.data_length, chip.size)
         self.t_size.set(format_size(chip.size), f"{chip.size:,} bytes (0x{chip.size:X})")
         self.t_page.set(f"{chip.page_size} B")
         self.t_volt.set(chip.supply_label,
@@ -869,8 +871,8 @@ class MainWindow(QMainWindow):
         self.conn_dot.set_color(color, halo=False)
         self.conn_text.setText(pill)
 
-    def install_udev(self) -> None:
-        if not ask_yes_no(self, "USB permissions",
+    def install_udev(self, confirm: bool = True) -> None:
+        if confirm and not ask_yes_no(self, "USB permissions",
                           "Install a udev rule so that your user can use the EZP2019+ "
                           "without root?",
                           informative="You will be asked for your password. The rule is "
@@ -984,8 +986,8 @@ class MainWindow(QMainWindow):
             self.device_error = "permission"
             self._refresh_device_view()
             self.log(str(exc), "error")
-            if ask_yes_no(self, "USB permissions", str(exc), yes="Install udev rule…"):
-                self.install_udev()
+            if ask_yes_no(self, "USB permissions", str(exc), yes="Install udev rule"):
+                self.install_udev(confirm=False)
             return
         if isinstance(exc, NotConnectedError):
             self.log(str(exc), "error")
@@ -1101,9 +1103,12 @@ class MainWindow(QMainWindow):
 
     # -- write / verify / auto helpers
 
-    def _data_ranges(self, chip: Chip, action: str) -> tuple[int, int] | None:
+    def _data_ranges(self, chip: Chip, action: str, need_write: bool = True,
+                     need_verify: bool = True) -> tuple[int, int] | None:
         data = self.doc.data
         length = self.doc.data_length
+        if not (need_write or need_verify):
+            return 0, 0
         if length > chip.size:
             if not ask_yes_no(self, action,
                               f"The buffer holds {human_bytes(length)} of data but the "
@@ -1113,7 +1118,7 @@ class MainWindow(QMainWindow):
                 return None
         wlen = write_length(chip, data, length)
         vlen = verify_length(chip, data, length)
-        if vlen == 0 or (action != "Verify" and wlen == 0):
+        if (need_verify and vlen == 0) or (need_write and wlen == 0):
             QMessageBox.information(self, action, "The buffer is empty. Open a file or read "
                                                   "a chip first.")
             return None
@@ -1130,17 +1135,22 @@ class MainWindow(QMainWindow):
         if chip.is_spi_flash:
             self.log("SPI flash only changes bits from 1 to 0 when written; erase it first "
                      "(or use Auto).", "info")
-        data = bytes(self.doc.data[:wlen])
+        data = bytes(self.doc.data[:self._stream_len(chip, wlen)])
         clock = self.clock()
         self._start("Write", lambda p, c: self.prog.write(chip, data, wlen, clock, p, c),
                     lambda n: self._simple_done(f"Write complete — {human_bytes(n)} "
                                                 f"programmed.", "Write complete"))
 
+    @staticmethod
+    def _stream_len(chip: Chip, length: int) -> int:
+        """Buffer bytes a write of ``length`` bytes sends (whole transfer chunks)."""
+        return min(round_up(length, P.transfer_chunk(chip)), chip.size)
+
     def verify_chip(self) -> None:
         chip = self._require_chip()
         if chip is None:
             return
-        ranges = self._data_ranges(chip, "Verify")
+        ranges = self._data_ranges(chip, "Verify", need_write=False)
         if ranges is None:
             return
         _wlen, vlen = ranges
@@ -1191,7 +1201,7 @@ class MainWindow(QMainWindow):
         if not (erase or program or verify):
             QMessageBox.information(self, "Auto", "Tick at least one step under Options.")
             return
-        ranges = self._data_ranges(chip, "Auto")
+        ranges = self._data_ranges(chip, "Auto", need_write=program, need_verify=verify)
         if ranges is None:
             return
         wlen, vlen = ranges
@@ -1201,7 +1211,7 @@ class MainWindow(QMainWindow):
                                                         ("verify", verify)) if on) + ".",
                                     yes="Start", danger=True):
             return
-        data = bytes(self.doc.data[:max(wlen, vlen)])
+        data = bytes(self.doc.data[:max(self._stream_len(chip, wlen), vlen)])
         clock = self.clock()
         self._start("Auto", lambda p, c: self.prog.auto(
             chip, data, write_len=wlen, verify_len=vlen, clock=clock, erase=erase,
