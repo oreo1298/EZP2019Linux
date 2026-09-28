@@ -345,11 +345,19 @@ class Programmer:
         transport = self.connector.open()
         transport.trace = self.trace
         session = Session(transport, clock, progress, cancel)
+        aborted = False
         try:
             yield session
+        except BaseException:
+            aborted = True
+            raise
         finally:
             try:
                 transport.command(session.packets.end(), False)
+                if aborted:
+                    # A cancelled or failed transfer can leave packets queued in the
+                    # device; make sure the next session does not read them as replies.
+                    transport.drain()
             except ProgrammerError:
                 pass
             transport.close()

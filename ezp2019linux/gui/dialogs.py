@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import (QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt,
                             QRegularExpression)
 from PySide6.QtGui import QFont, QRegularExpressionValidator
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QComboBox,
                                QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QRadioButton, QSpinBox, QTableView,
@@ -19,7 +19,7 @@ from ..core.chipdb import (ALGORITHM_LABELS, TYPE_CLASSES, TYPE_LABELS, VOLTAGE_
                            ChipDatabase, format_size, parse_dat)
 from . import icons
 from .theme import theme
-from .widgets import Card, scaled_font
+from .widgets import Card, form_row, scaled_font
 
 HEX_RE = QRegularExpression(r"^(0[xX])?[0-9A-Fa-f]{0,8}[hH]?$")
 
@@ -89,8 +89,8 @@ class FillDialog(QDialog):
         self.end_edit = QLineEdit(f"{max(start, end):0{digits}X}")
         for e in (self.start_edit, self.end_edit):
             e.setValidator(QRegularExpressionValidator(HEX_RE))
-        form.addRow("Start address (hex)", self.start_edit)
-        form.addRow("End address (hex, inclusive)", self.end_edit)
+        form_row(form, "Start address (hex)", self.start_edit, muted=False)
+        form_row(form, "End address (hex, inclusive)", self.end_edit, muted=False)
         rng.add_layout(form)
         lay.addWidget(rng)
 
@@ -336,6 +336,11 @@ class ChipEditorDialog(QDialog):
         _setup_table(self.view)
         self.view.setSortingEnabled(False)
         left.addWidget(self.view, 1)
+        self.empty = QLabel("No custom chips yet.\nFill in the form and click “Add chip”, or "
+                            "import a .Dat database.", self.view.viewport())
+        self.empty.setObjectName("Muted")
+        self.empty.setAlignment(Qt.AlignCenter)
+        self.model.modelReset.connect(self._update_empty)
         row = QHBoxLayout()
         self.b_import = QPushButton(theme.icon("import"), "Import .Dat…")
         self.b_export = QPushButton(theme.icon("export"), "Export .Dat…")
@@ -357,6 +362,7 @@ class ChipEditorDialog(QDialog):
             self.f_type.addItem(TYPE_LABELS[t], t)
         self.f_vendor = QComboBox()
         self.f_vendor.setEditable(True)
+        self.f_vendor.lineEdit().setPlaceholderText("e.g. WINBOND")
         self.f_name = QLineEdit()
         self.f_name.setPlaceholderText("e.g. W25Q64JV")
         self.f_id = QLineEdit()
@@ -377,15 +383,12 @@ class ChipEditorDialog(QDialog):
         self.f_delay.setValue(1000)
         self.f_delay.setToolTip("SPI flash: erase timeout in 50 ms status polls.\n"
                                 "EEPROMs: write/erase delay passed to the programmer.")
-        form.addRow("Type", self.f_type)
-        form.addRow("Manufacturer", self.f_vendor)
-        form.addRow("Model", self.f_name)
-        form.addRow("Chip ID", self.f_id)
-        form.addRow("Capacity", self.f_size)
-        form.addRow("Page size", self.f_page)
-        form.addRow("Algorithm", self.f_algo)
-        form.addRow("Supply voltage", self.f_volt)
-        form.addRow("Delay", self.f_delay)
+        for text, field in (("Type", self.f_type), ("Manufacturer", self.f_vendor),
+                            ("Model", self.f_name), ("Chip ID", self.f_id),
+                            ("Capacity", self.f_size), ("Page size", self.f_page),
+                            ("Algorithm", self.f_algo), ("Supply voltage", self.f_volt),
+                            ("Delay", self.f_delay)):
+            form_row(form, text, field, muted=False)
         card.add_layout(form)
         self.b_template = QPushButton(theme.icon("copy"), "Copy settings from a built-in chip…")
         self.b_template.setProperty("variant", "ghost")
@@ -420,10 +423,27 @@ class ChipEditorDialog(QDialog):
         self.view.selectionModel().selectionChanged.connect(self._selected)
         self._type_changed()
         self._new()
+        self._update_empty()
+
+    _DEFAULTS = {  # capacity, page size, delay, voltage for a new chip of each family
+        "SPI_FLASH": (4 << 20, 256, 1000, 0),
+        "24_EEPROM": (256, 16, 4000, 0),
+        "93_EEPROM": (128, 16, 2000, 2),
+        "25_EEPROM": (8192, 32, 4000, 2),
+    }
+
+    def _apply_defaults(self) -> None:
+        size, page, delay, volt = self._DEFAULTS[self.f_type.currentData()]
+        self.f_size.setCurrentIndex(max(0, self.f_size.findData(size)))
+        self.f_page.setCurrentIndex(max(0, self.f_page.findData(page)))
+        self.f_delay.setValue(delay)
+        self.f_volt.setCurrentIndex(max(0, self.f_volt.findData(volt)))
 
     def _type_changed(self) -> None:
         chip_type = self.f_type.currentData()
         cls = TYPE_CLASSES[chip_type]
+        if self._editing is None and not getattr(self, "_filling", False):
+            self._apply_defaults()
         self.f_algo.clear()
         for value, label in ALGORITHM_LABELS[cls].items():
             self.f_algo.addItem(label, value)
@@ -435,8 +455,10 @@ class ChipEditorDialog(QDialog):
         self.f_id.setEnabled(cls == 0)
 
     def _fill_form(self, chip: Chip) -> None:
+        self._filling = True
         self.f_type.setCurrentIndex(max(0, self.f_type.findData(chip.type)))
         self._type_changed()
+        self._filling = False
         self.f_vendor.setEditText(chip.manufacturer)
         self.f_name.setText(chip.name)
         self.f_id.setText(f"{chip.chip_id:06X}" if chip.chip_id else "")
@@ -520,6 +542,14 @@ class ChipEditorDialog(QDialog):
                     eeprom_page=1 if cls == 0 else 4, eeprom_size=0 if cls == 0 else 2,
                     custom=True)
 
+    def _update_empty(self) -> None:
+        self.empty.setVisible(not self.custom)
+        self.empty.resize(self.view.viewport().size())
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._update_empty()
+
     def _persist(self) -> None:
         self.db.set_custom_chips(self.custom)
         try:
@@ -597,7 +627,7 @@ class AboutDialog(QDialog):
         lay.setSpacing(12)
         head = QHBoxLayout()
         logo = QLabel()
-        logo.setPixmap(icons.pixmap("chip", theme.palette.accent, 52))
+        logo.setPixmap(QApplication.windowIcon().pixmap(56, 56))
         head.addWidget(logo, 0, Qt.AlignTop)
         text = QVBoxLayout()
         title = QLabel(APP_NAME)

@@ -5,9 +5,9 @@ from __future__ import annotations
 from PySide6.QtCore import (QEasingCurve, QPropertyAnimation, QRect, QSize, Qt, QTimer)
 from PySide6.QtGui import QColor, QPainter, QPainterPath
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsOpacityEffect, QGridLayout,
-                               QHBoxLayout, QLabel, QSizePolicy, QToolButton, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (QButtonGroup, QFormLayout, QFrame, QGraphicsOpacityEffect,
+                               QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QToolButton,
+                               QVBoxLayout, QWidget)
 
 from . import icons
 from .theme import theme
@@ -16,6 +16,17 @@ from .theme import theme
 def set_role(widget: QWidget, name: str) -> QWidget:
     widget.setObjectName(name)
     return widget
+
+
+def form_row(form: QFormLayout, text: str, field: QWidget, muted: bool = True) -> QLabel:
+    """Add a form row whose label is vertically centred on the field."""
+    label = QLabel(text)
+    if muted:
+        label.setObjectName("Muted")
+    label.setMinimumHeight(field.sizeHint().height())
+    label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    form.addRow(label, field)
+    return label
 
 
 def scaled_font(widget: QWidget, factor: float, bold: bool = False):

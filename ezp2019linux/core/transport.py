@@ -114,6 +114,10 @@ class Transport(ABC):
             self.trace(f"DATA > {len(data)} bytes")
         self._write_ep(self.variant.ep_data_out, data)
 
+    def drain(self, max_bytes: int = 64 * 1024, timeout_ms: int = 30) -> int:
+        """Discard data still queued on the IN endpoint after an aborted transfer."""
+        return 0
+
 
 class Connector(ABC):
     """Finds programmers and opens transports to them."""
@@ -281,6 +285,21 @@ class UsbTransport(Transport):
             self._fail("write", ep, exc)
         if written != len(data):
             raise UsbTransferError(f"Short USB write ({written} of {len(data)} bytes).")
+
+    def drain(self, max_bytes: int = 64 * 1024, timeout_ms: int = 30) -> int:
+        buf = array.array("B", bytes(4096))
+        drained = 0
+        while drained < max_bytes:
+            try:
+                n = self.dev.read(self.variant.ep_in, buf, timeout_ms)
+            except self._usb.core.USBError:
+                break
+            if n <= 0:
+                break
+            drained += n
+        if drained and self.trace:
+            self.trace(f"DRAIN < {drained} stale bytes")
+        return drained
 
     def _read_ep(self, ep: int, size: int) -> bytes:
         # pyusb reads into an array.array in place; reuse one per request size.

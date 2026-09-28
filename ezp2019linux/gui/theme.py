@@ -170,10 +170,11 @@ QCheckBox::indicator { width: 17px; height: 17px; border-radius: 5px;
 QCheckBox::indicator:hover { border-color: $accent; }
 QCheckBox::indicator:checked { background: $accent; border-color: $accent; image: url("$check"); }
 QCheckBox::indicator:checked:disabled { background: $border_strong; border-color: $border_strong; }
-QRadioButton::indicator { width: 16px; height: 16px; border-radius: 9px;
+QRadioButton::indicator { width: 14px; height: 14px; border-radius: 8px;
                           border: 1px solid $border_strong; background: $surface_alt; }
 QRadioButton::indicator:hover { border-color: $accent; }
-QRadioButton::indicator:checked { border: 5px solid $accent; background: $accent_text; }
+QRadioButton::indicator:checked { width: 6px; height: 6px; border-radius: 8px;
+                                  border: 5px solid $accent; background: $accent_text; }
 
 QProgressBar { background: $raised; border: none; border-radius: 4px; max-height: 8px;
                min-height: 8px; text-align: center; color: transparent; }

@@ -36,7 +36,7 @@ from .document import BufferDocument
 from .hexview import HexView
 from .theme import mono_font, theme
 from .widgets import (Card, KeyValueGrid, SegmentedControl, StatTile, StatusDot, Toast,
-                      scaled_font)
+                      form_row, scaled_font)
 from .worker import OperationRunner
 
 MAX_LOG_ENTRIES = 3000
@@ -433,9 +433,8 @@ class MainWindow(QMainWindow):
             box.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             box.setMinimumContentsLength(10)
             box.setMaxVisibleItems(20)
-        h = self.vendor_box.sizeHint().height()
-        form.addRow(self._muted("Maker", h), self.vendor_box)
-        form.addRow(self._muted("Model", h), self.model_box)
+        form_row(form, "Maker", self.vendor_box)
+        form_row(form, "Model", self.model_box)
         card.add_layout(form)
         self.vendor_box.currentIndexChanged.connect(self._vendor_changed)
         self.model_box.currentIndexChanged.connect(self._model_changed)
@@ -475,7 +474,7 @@ class MainWindow(QMainWindow):
         self.clock_box.setCurrentIndex(P.DEFAULT_CLOCK)
         self.clock_box.setToolTip("SPI clock for 25-series flash and EEPROMs. Lower it if "
                                   "reads are unreliable (long wires, clips).")
-        form.addRow(self._muted("SPI clock", self.clock_box.sizeHint().height()), self.clock_box)
+        form_row(form, "SPI clock", self.clock_box)
         card.add_layout(form)
         row = QHBoxLayout()
         row.setSpacing(10)
@@ -491,12 +490,9 @@ class MainWindow(QMainWindow):
         card.add_layout(row)
         return card
 
-    def _muted(self, text: str, height: int = 0) -> QLabel:
+    def _muted(self, text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setObjectName("Muted")
-        if height:
-            lbl.setMinimumHeight(height)
-            lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         return lbl
 
     def _build_buffer_card(self) -> Card:
