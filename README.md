@@ -229,11 +229,17 @@ The code is split into:
 
 ### Hardware testing status
 
-Every operation is tested end to end against the packet-level simulator for
-all four chip families and both firmware variants, and the libusb transport
-is tested against a fake device. It has not yet been run against a physical
-EZP2019+ by the author. If something does not work with your programmer,
-please open an issue with a `--debug` log.
+Confirmed working on a real EZP2019+ under Arch Linux. That programmer
+reports firmware 1.00 and the `WinUSBComm` interface (endpoints 0x82, 0x01
+and 0x02, big-endian). The other firmware variant, `WinUSBComm Device`, has
+not been tried on hardware yet; `ezp2019linux info` shows which one yours
+has.
+
+Every operation is also tested end to end against the packet-level simulator
+for all four chip families and both firmware variants, and the libusb
+transport is tested against a fake device. If something does not work with
+your programmer, please open an issue with a `--debug` log and the output of
+`ezp2019linux info`.
 
 ## Development
 

@@ -29,6 +29,10 @@ against the endpoint descriptors. The interface number is taken from the
 first interface of the active configuration. The Windows software reads the
 manufacturer and product strings every time it opens the device.
 
+Confirmed on hardware: a `1fc8:310b` unit reporting `WinUSBComm` and
+`bcdDevice` 1.00 works with the endpoints and big-endian byte order listed
+above.
+
 ## Transport
 
 * **Command**: 64 bytes written to the command OUT endpoint (5 s timeout).
